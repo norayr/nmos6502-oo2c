@@ -23,18 +23,16 @@ Other dependency, obviously is cc65 c compiler for 6502.
 You need to install cc65 first and make sure that it works, and binaries
 are in the path.
 
-To compile nmos6502-oo2c from the sources, unpack source archive first
-
 cd nmos6502-oo2c
 ./build.sh\
 
 It should do all work for you, unpack oo2c-1.5.9 distribution, apply patches, compile compiler, then build a small library
-Do not worry about linker messages - it is just cc65 bug dirty workaround, cc65 compiler doesnt create .o files in obj/system and script moves them to the right place 
+Do not worry about linker messages - it is just a cc65 bug dirty workaround, cc65 compiler doesn't create .o files in obj/system and script moves them to the right place 
 To make sure your system is supported - search for "hello" file in
 /usr/local/nmos-6502/sysname
-It seems that library works for all systems except NES.
-This seems to be because it is not possile to compile any file
-with stdio.h for NES - NES has no plain console library.
+It seems that the library works for all systems except NES.
+This is because minilib depends on stdio.h which is absent for NES platform.
+
 Now, to test, run your favourite emulator and load produced hello file
 To run on Oric emulator, type CLOAD "hello" that will load the program :)
 
