@@ -1,0 +1,60 @@
+
+# this configuration is used to build C code and makefiles for the oo2c
+# distribution
+
+OPTIONS
+  verbose := FALSE;
+  errorMessages := "Errors.short";
+  optimize := TRUE;
+
+  cc := "cl65 -t atmos";
+  cflags := "-Os";
+  coptflags := "";
+  ldflags := "";
+  gcflags := "";
+  valueStack := -1;
+END
+
+PRAGMAS
+  Warnings := TRUE;
+  Assertions := TRUE;
+  Initialize := FALSE;
+  PoisonHeap := -1;
+  StackCheck := FALSE;
+  ConformantMode := FALSE;
+
+  CaseSelectCheck := TRUE;
+  IndexCheck := FALSE;
+  RangeCheck := FALSE;
+  DerefCheck := FALSE;
+  FunctResult := FALSE;
+  TypeGuard := FALSE;
+  OverflowCheck := FALSE;
+  IntDivCheck := FALSE;
+  RealOverflowCheck := FALSE;
+  RealDivCheck := FALSE;
+
+  TARGET_OS := "atmos";
+  TARGET_INTEGER := 32;
+  TARGET_BYTE_ORDER := "1234";
+END
+
+PATHS
+GET *.Mod [RCS] FROM
+  .;
+  minilib;
+  src;
+GET *.Sym, *.Lib FROM 
+  obj/atmos;
+GET *.h, *.d, *.c FROM
+  obj/atmos;
+  minilib;
+  minilib/atmos;
+GET *.o FROM
+  obj/atmos
+END
+
+NEWFILES
+  PUT * INTO  obj/atmos;
+END
+

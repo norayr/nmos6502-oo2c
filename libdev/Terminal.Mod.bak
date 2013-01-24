@@ -1,0 +1,12 @@
+(*MODULE Terminal [FOREIGN "C"; LINK FILE "Terminal.c" END];*)
+MODULE Terminal;
+PROCEDURE Put* (c: CHAR);
+BEGIN
+END Put;
+PROCEDURE PutInt* (c : LONGINT);
+BEGIN
+END PutInt;
+PROCEDURE Get* (VAR c : CHAR);
+BEGIN
+END Get;
+END Terminal.

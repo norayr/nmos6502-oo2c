@@ -1,0 +1,46 @@
+nmos6502-oo2c optimizing oberon-2 compiler for nmos6502 platforms
+
+Overview
+
+This is a port of oo2c (Optimizing Oberon-2 Compier) for nmos6502 CPU based platforms.
+oo2c (http://ooc.sf.net) frontend generates abstract syntax tree, from which
+it's backend generates highly optimized C code.
+If you look at the generated C output, you'll notice that code looks more like assembly rather than C.
+As it uses C compiler as portable assembler we modified it so it will work with cc65 (www.cc65.org) C compiler for nmos6502 platforms instead of GCC.
+Therefore it is possible to generate code for a variety of 6502 platforms supported by cc65 - Apple][, 8 bit Ataris, Oric Atmos, Commodore, etc...
+ 
+This work uses Stewart Greenhill's patch which changes oo2c to produce code for 8bit machines - initially he did it to work with AVR microcontrollers.
+He also prepared a  small mini library.
+Both oo2c and this mini library were changed in order to compile with cc65, as cc65 is different from gcc.
+
+Now, I have a pleasure to write object oriented programs in Oberon-2 for my favourite little computer - Oric Atmos.
+
+Installation
+As oo2c have been written in Oberon, to compile it you need to have oo2c installed
+It is ideal to have oo2c-1.5.9, the same version we will compile.
+In Debian you may accomplish it with apt-get install oo2c. (fix. it seems in the latest Debians oo2c was removed - no maintainer)
+Other dependency, obviously is cc65 c compiler for 6502.
+You need to install cc65 first and make sure that it works, and binaries
+are in the path.
+
+To compile nmos6502-oo2c from the sources, unpack source archive first
+
+cd nmos6502-oo2c
+./build.sh\
+
+It should do all work for you, unpack oo2c-1.5.9 distribution, apply patches, compile compiler, then build a small library
+Do not worry about linker messages - it is just cc65 bug dirty workaround, cc65 compiler doesnt create .o files in obj/system and script moves them to the right place 
+To make sure your system is supported - search for "hello" file in
+/usr/local/nmos-6502/sysname
+It seems that library works for all systems except NES.
+This seems to be because it is not possile to compile any file
+with stdio.h for NES - NES has no plain console library.
+Now, to test, run your favourite emulator and load produced hello file
+To run on Oric emulator, type CLOAD "hello" that will load the program :)
+
+Usage
+let's compile ooptest.Mod
+in case target is atmos just type
+/usr/local/nmos-6502/atmos-oo2c ooptest
+
+UPD: I did not test it with the recent versions of cc65 and I am not sure that it still works.

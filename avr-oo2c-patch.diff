@@ -1,0 +1,306 @@
+diff -urP oo2c_32-1.5.5/src/backend/Allocate.Mod oo2c_32-1.5.5.version0/src/backend/Allocate.Mod
+--- oo2c_32-1.5.5/src/backend/Allocate.Mod	Sat Jul 22 00:04:51 2000
++++ oo2c_32-1.5.5.version0/src/backend/Allocate.Mod	Thu Aug  9 10:50:57 2001
+@@ -159,13 +159,13 @@
+   (* this value is stored in `Result.marker' for results that haven't been
+      assigned their id yet by the preprocessing step in procedure Region *)
+      
+-  registers = {Class.instrInt..Class.instrLongReal};
++  registers = {Class.instrChar..Class.instrLongReal};
+   (* this set holds the flags that mark the use of one of the register classes;
+      if for an instruction `i.flags*registers # {}' holds, a register has to be
+      allocated to hold the result of the instruction *)
+-  regOff = Class.instrInt;
++  regOff = Class.instrChar;
+   (* used to map elements of a `registers' set onto array indices *)
+-  registerFiles = Class.instrLongReal-Class.instrInt+1;
++  registerFiles = Class.instrLongReal-Class.instrChar+1;
+   (* number of distinct register files in use *)
+   
+   bitsPerSet = SIZE (SET)*8;
+@@ -995,7 +995,7 @@
+   BEGIN
+     IF (instr. flags * registers # {}) THEN
+       (* instruction procedures exactly one result stored in a register *)
+-      reg := Class.instrInt;
++      reg := Class.instrChar;
+       WHILE ~(reg IN instr. flags) DO
+         INC (reg)
+       END;
+@@ -2742,6 +2742,10 @@
+     Region (greg);
+ 
+     summary := greg. info(RegionSummary);
++    AssignRegisters (summary. rf[Class.instrChar-regOff],
++                     Class.prefixChar);
++    AssignRegisters (summary. rf[Class.instrShort-regOff],
++                     Class.prefixShort);
+     AssignRegisters (summary. rf[Class.instrInt-regOff],
+                      Class.prefixInt);
+     AssignRegisters (summary. rf[Class.instrHuge-regOff],
+@@ -2773,6 +2777,8 @@
+     str: ARRAY 64 OF CHAR;
+   BEGIN
+     CASE reg OF
++    | Class.instrChar: form := D.strShortInt
++    | Class.instrShort: form := D.strInteger
+     | Class.instrInt: form := D.strLongInt
+     | Class.instrHuge: form := D.strHugeInt
+     | Class.instrReal: form := D.strReal
+@@ -2823,6 +2829,8 @@
+       END WriteDeclarations;
+ 
+     BEGIN
++      WriteDeclarations (Class.prefixChar, Class.instrChar-regOff, off);
++      WriteDeclarations (Class.prefixShort, Class.instrShort-regOff, off);
+       WriteDeclarations (Class.prefixInt, Class.instrInt-regOff, off);
+       WriteDeclarations (Class.prefixHuge, Class.instrHuge-regOff, off);
+       WriteDeclarations (Class.prefixReal, Class.instrReal-regOff, off);
+@@ -2849,6 +2857,8 @@
+       END WriteList;
+     
+     BEGIN
++      WriteList (Class.prefixChar, Class.instrChar-regOff);
++      WriteList (Class.prefixShort, Class.instrShort-regOff);
+       WriteList (Class.prefixInt, Class.instrInt-regOff);
+       WriteList (Class.prefixHuge, Class.instrHuge-regOff);
+       WriteList (Class.prefixReal, Class.instrReal-regOff);
+diff -urP oo2c_32-1.5.5/src/backend/Classify.Mod oo2c_32-1.5.5.version0/src/backend/Classify.Mod
+--- oo2c_32-1.5.5/src/backend/Classify.Mod	Fri May 21 04:31:31 1999
++++ oo2c_32-1.5.5.version0/src/backend/Classify.Mod	Thu Aug  9 10:51:57 2001
+@@ -24,6 +24,8 @@
+   D := Data, Opc := Opcode, Sym := SymbolTable;
+   
+ CONST
++  prefixChar* = "c";
++  prefixShort* = "s";
+   prefixInt* = "i";
+   prefixHuge* = "h";
+   prefixReal* = "f";
+@@ -41,22 +43,26 @@
+      information *)
+   instrVoid* = D.minInstrFlag+1;
+   (* instruction is translated to statement *)
+-  instrInt* = D.minInstrFlag+2;
++  instrChar* = D.minInstrFlag+2;	(* AVR *)
++  (* instruction puts its result into the `char' register file *)
++  instrShort* = D.minInstrFlag+3;	(* AVR *)
++  (* instruction puts its result into the `short integer' register file *)
++  instrInt* = D.minInstrFlag+4;
+   (* instruction puts its result into the `integer' register file *)
+-  instrHuge* = D.minInstrFlag+3;
++  instrHuge* = D.minInstrFlag+5;
+   (* instruction puts its result into the `huge integer' register file *)
+-  instrReal* = D.minInstrFlag+4;
++  instrReal* = D.minInstrFlag+6;
+   (* instruction puts its result into the `single precision real' register 
+      file *)
+-  instrLongReal* = D.minInstrFlag+5;
++  instrLongReal* = D.minInstrFlag+7;
+   (* instruction puts its result into the `double precision real' register 
+      file *)
+-  instrDelayedRegion* = D.minInstrFlag+6;
++  instrDelayedRegion* = D.minInstrFlag+8;
+   (* used in Schedule.Schedule; marks a region that is merged into another 
+      region and is therefore always scheduled as part of its merge *)
+-  instrJumpTarget* = D.minInstrFlag+7;
++  instrJumpTarget* = D.minInstrFlag+9;
+   (* instruction is target of a goto *)
+-  instrSpecialDecl* = D.minInstrFlag+8;
++  instrSpecialDecl* = D.minInstrFlag+10;
+   (* the greg has to insert additional declarations for some special code 
+      procedures appearing in its code *)
+   
+@@ -233,11 +239,17 @@
+ (* Maps an Oberon-2 type onto one of the register files.  *)
+   BEGIN
+     CASE type. form OF
+-    | D.strBoolean..D.strLongInt, D.strSet8..D.strSet32, D.strByte:
+-      RETURN instrInt
++    | D.strBoolean, D.strChar8, D.strSet8, D.strByte, D.strShortInt:
++      RETURN instrChar;
++    | D.strChar16, D.strInteger, D.strSet16:
++      RETURN instrShort;
++    | D.strLongInt, D.strSet32:
++      RETURN instrInt;
+     | D.strPtr, D.strNil, D.strPointer, D.strProc:
+       (* `int' for 32 bit, `huge' for 64 bit architecture *)
+-      IF (D.strAddress = D.strLongInt) THEN
++      IF (D.strAddress = D.strInteger) THEN
++        RETURN instrShort
++      ELSIF (D.strAddress = D.strLongInt) THEN
+         RETURN instrInt
+       ELSE
+         RETURN instrHuge
+diff -urP oo2c_32-1.5.5/src/backend/Config.Mod oo2c_32-1.5.5.version0/src/backend/Config.Mod
+--- oo2c_32-1.5.5/src/backend/Config.Mod	Thu Jan  1 08:00:00 1970
++++ oo2c_32-1.5.5.version0/src/backend/Config.Mod	Fri Jun 22 13:52:51 2001
+@@ -0,0 +1,110 @@
++ (* 	$Id: Config.Mod,v 1.23 1999/11/24 19:42:16 ooc-devel Exp $	 *)
++MODULE Config;
++(*  Default values for various compiler options.
++    Copyright (C) 1995-1999  Michael van Acken
++
++    This file is part of OOC.
++
++    OOC is free software; you can redistribute it and/or modify it
++    under the terms of the GNU General Public License as published by
++    the Free Software Foundation; either version 2 of the License, or
++    (at your option) any later version.  
++
++    OOC is distributed in the hope that it will be useful, but WITHOUT
++    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
++    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
++    License for more details. 
++
++    You should have received a copy of the GNU General Public License
++    along with OOC. If not, write to the Free Software Foundation, 59
++    Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++*)
++
++CONST
++  (* index range for HALT and ASSERT (min <= x <= max): *)
++  minTrapNum* = 0; maxTrapNum* = 255;    (* trap ids for HALT and ASSERT *)
++  defAssertTrap* = 1;                    (* default trap for ASSERT(x) *)
++
++CONST
++  (* file extensions *)
++  moduleExtension* = "Mod";              (* module files *)
++  symbolExtension* = "Sym";              (* symbol files *)
++  libFileExtension* = "Lib";             (* library summary; only oo2c *)
++
++CONST
++  symbolFileFormat* = 1;
++  (* this number is written into every symbol file generated by this back-end;
++     it is used to recognize different symbol file formats generated by
++     different back-ends (generic=0, ansi-c=1/2, m68k=3, etc); see also 
++     frontend/doc/SymFormats *)
++  symbolFileVersion* = 4;
++  (* symbol file formats change over time; to avoid strange errors when reading
++     out of date files, a back-end specific version number is kept in addition 
++     to the file format number; every time the back-end changes its symbol
++     files this number should be increased *)
++     
++CONST
++  defaultErrorMsgs* = "/usr/local/lib/oo2c/Errors.short";
++  (* default location of plain text error descriptions, can be modified with
++     the configuration file option `errorMessages' *)
++
++CONST
++  defaultConfigFile* = "/usr/local/lib/oo2c/oo2crc";
++  (* default location of configuration file *)
++  configEnvVar* = "OOC_CONFIG";
++  (* name of the environment variable that will supersede the value of 
++     `defaultConfigFile' if set;  the command line option --config <file> in 
++     turn supersedes both the default path and the environment variable *)
++
++CONST  
++  defaultStringLength* = MIN (LONGINT);  (* see Scanner.Mod *)
++  defaultIdentLength* = MIN (LONGINT);   (* see Scanner.Mod *)
++  
++  (* disable/enable assertions, warnings, initialization of variables, and 
++     checks for stack overflow *)
++  defaultAssertions* = TRUE;
++  defaultWarnings* = TRUE;
++  defaultInitialize* = FALSE;
++  defaultStackCheck* = TRUE;
++  defaultConformantMode* = FALSE;
++  
++  (* default values for pragmas in module `StdPragmas' *)
++  defaultCaseSelectCheck* = TRUE;
++  defaultIndexCheck* = TRUE;
++  defaultRangeCheck* = TRUE;
++  defaultDerefCheck* = TRUE;
++  defaultFunctResult* = TRUE;
++  defaultTypeGuard* = TRUE;
++  defaultIOverflowCheck* = FALSE;
++  defaultIDivCheck* = TRUE;
++  defaultROverflowCheck* = TRUE;
++  defaultRDivCheck* = TRUE;
++
++  (* default settings for the COMPILER* and TARGET* pragma variables, also 
++     created in module `StdPragmas'; the version numbers will be replaced with
++     proper values in the oo2c distribution tar file *)
++  defaultCompiler* = "OOC";
++  defaultCompilerVersion* = "1.5.5";
++  defaultCompilerMajor* = 1;
++  defaultCompilerMinor* = 5;
++  
++  defaultTargetOS* = "None";
++  defaultTargetArch* = "AVR";
++  defaultTargetArchMinor* = "";
++  defaultTargetInteger* = 32;
++  defaultTargetAddress* = 16;
++  defaultTargetByteOrder* = "1234";
++  
++CONST  (* default settings for oo2c specific options *)
++  defaultCC* = "avr-gcc";                    (* see Build.Mod *)
++  defaultCFlags* = "-Os";                  (* see Build.Mod *)
++  defaultCOptFlags* = "";               (* see Build.Mod *)
++  defaultLdFlags* = "";                 (* see Build.Mod *)
++  defaultLibtoolCmd* = "/usr/bin/libtool";       (* see Build.Mod *)
++  defaultInstallCmd* = "/usr/bin/install -c -m 644  ";            (* see Build.Mod *)
++  defaultLibPath* = "/usr/local/lib";                (* see Build.Mod *)
++  defaultGcFlags* = "";                 (* see GenStatm.Mod *)
++  defaultValueStack* = -1;           (* see GenStatm.Mod *)
++  defaultTargetUseLibm* = FALSE;         (* see oo2c.Mod *)
++  
++END Config.
+diff -urP oo2c_32-1.5.5/src/backend/GenStatm.Mod oo2c_32-1.5.5.version0/src/backend/GenStatm.Mod
+--- oo2c_32-1.5.5/src/backend/GenStatm.Mod	Thu Dec 28 00:34:31 2000
++++ oo2c_32-1.5.5.version0/src/backend/GenStatm.Mod	Thu Aug  9 10:53:35 2001
+@@ -154,7 +154,11 @@
+ 
+ PROCEDURE WriteResultCast (instr: D.Instruction; unsigned: BOOLEAN);
+   BEGIN
+-    IF (Class.instrInt IN instr. flags) THEN
++    IF (Class.instrChar IN instr. flags) THEN
++      GenDecl.WriteScalarCast (w, D.struct[D.strShortInt], unsigned, FALSE, FALSE)
++    ELSIF (Class.instrShort IN instr. flags) THEN
++      GenDecl.WriteScalarCast (w, D.struct[D.strInteger], unsigned, FALSE, FALSE)
++    ELSIF (Class.instrInt IN instr. flags) THEN
+       GenDecl.WriteScalarCast (w, D.struct[D.strLongInt], unsigned, FALSE, FALSE)
+     ELSE
+       GenDecl.WriteScalarCast (w, D.struct[D.strHugeInt], unsigned, FALSE, FALSE)
+diff -urP oo2c_32-1.5.5/src/backend/StdTypes.Mod oo2c_32-1.5.5.version0/src/backend/StdTypes.Mod
+--- oo2c_32-1.5.5/src/backend/StdTypes.Mod	Mon Jun 26 03:03:43 2000
++++ oo2c_32-1.5.5.version0/src/backend/StdTypes.Mod	Fri Jul 13 10:22:36 2001
+@@ -261,7 +261,9 @@
+     | D.strHugeInt, D.strLongReal, D.strSet64:
+       t. size := 8
+     | D.strPtr, D.strPointer, D.strProc:
+-      IF (D.strAddress = D.strLongInt) THEN
++      IF (D.strAddress = D.strInteger) THEN
++        t. size := 2	(* AVR: addresses are 16-bit *)
++      ELSIF (D.strAddress = D.strLongInt) THEN
+         t. size := 4
+       ELSE
+         t. size := 8
+diff -urP oo2c_32-1.5.5/src/backend/WriteGSAvC.Mod oo2c_32-1.5.5.version0/src/backend/WriteGSAvC.Mod
+--- oo2c_32-1.5.5/src/backend/WriteGSAvC.Mod	Sat Jul 17 01:02:27 1999
++++ oo2c_32-1.5.5.version0/src/backend/WriteGSAvC.Mod	Thu Aug  9 10:54:01 2001
+@@ -460,6 +460,12 @@
+       IF (C.instrVoid IN instr. flags) THEN
+         Out.String (" void")
+       END;
++      IF (C.instrChar IN instr. flags) THEN
++        Out.String (" char")
++      END;
++      IF (C.instrShort IN instr. flags) THEN
++        Out.String (" short")
++      END;
+       IF (C.instrInt IN instr. flags) THEN
+         Out.String (" int")
+       END;
+diff -urP oo2c_32-1.5.5/src/frontend/Data.Mod oo2c_32-1.5.5.version0/src/frontend/Data.Mod
+--- oo2c_32-1.5.5/src/frontend/Data.Mod	Thu Dec 28 00:31:44 2000
++++ oo2c_32-1.5.5.version0/src/frontend/Data.Mod	Fri Jul 13 09:47:29 2001
+@@ -455,7 +455,7 @@
+   (* in the compiler sources addresses are assigned the virtual type 
+      `strAddress'; this type is always an alias to an existing integer type;
+      on 32bit systems it is equivalent to LONGINT *)
+-  strAddress* = strLongInt;
++  strAddress* = strInteger; (* AVR: 16-bit addresses *)
+   (* markers for structured types;  arrays are separated into `normal', i.e.
+      fixed length arrays, and open arrays *)
+   strPointer* = 27; strProc* = 28; strArray* = 29; strOpenArray* = 30; 
